@@ -1,0 +1,296 @@
+#include <WiFi.h>
+#include <FirebaseESP32.h>
+
+#define WIFI_SSID "//your ssid"
+#define WIFI_PASSWORD "  //your password      "
+
+#define FIREBASE_HOST "//copy ur database url"
+#define FIREBASE_AUTH "//copy ur database secrets"
+
+#define WIFI_STATUS_PATH "/wifi_status"
+#define TIMESTAMP_PATH "/timestamp"
+
+#define relay1_pin 4
+#define relay2_pin 16 //RX2
+#define relay3_pin 17 //TX2
+#define relay4_pin 18
+#define relay5_pin 19
+#define relay6_pin 21
+#define relay7_pin 22
+#define relay8_pin 23
+
+#define switch1_pin 27
+#define switch2_pin 26
+#define switch3_pin 33
+#define switch4_pin 32
+#define switch5_pin 35
+#define switch6_pin 34
+#define switch7_pin 39
+#define switch8_pin 36
+
+#define LED_PIN 2
+
+//balance GPIO13 , GPIO25 , GPIO14 ;
+
+FirebaseData firebaseData;
+
+bool wifi_Control = true;
+bool wifiConnected = false;
+
+
+bool relay1State = false;
+bool relay2State = false;
+bool relay3State = false;
+bool relay4State = false;
+bool relay5State = false;
+bool relay6State = false;
+bool relay7State = false;
+bool relay8State = false;
+
+bool switch1PreviousState = HIGH;
+bool switch2PreviousState = HIGH;
+bool switch3PreviousState = HIGH;
+bool switch4PreviousState = HIGH;
+bool switch5PreviousState = HIGH;
+bool switch6PreviousState = HIGH;
+bool switch7PreviousState = HIGH;
+bool switch8PreviousState = HIGH;
+
+bool All = false;
+
+void setup() {
+  Serial.begin(115200);
+  connectToWiFi();
+
+  Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
+ 
+  while (!Firebase.beginStream(firebaseData, "/")) {
+    Serial.println("Could not connect to Firebase");
+    delay(1000);
+  }
+  Serial.println("Firebase initialized!");
+  Firebase.set(firebaseData, TIMESTAMP_PATH, millis() / 1000);
+
+  pinMode(LED_PIN,OUTPUT);
+  pinMode(relay1_pin, OUTPUT);
+  pinMode(switch1_pin, INPUT_PULLUP);
+  pinMode(relay2_pin, OUTPUT);
+  pinMode(switch2_pin, INPUT_PULLUP);
+  pinMode(relay3_pin, OUTPUT);
+  pinMode(switch3_pin, INPUT_PULLUP);
+  pinMode(relay4_pin, OUTPUT);
+  pinMode(switch4_pin, INPUT_PULLUP);
+  pinMode(relay5_pin, OUTPUT);
+  pinMode(switch5_pin, INPUT_PULLUP);
+  pinMode(relay6_pin, OUTPUT);
+  pinMode(switch6_pin, INPUT_PULLUP);
+  pinMode(relay7_pin, OUTPUT);
+  pinMode(switch7_pin, INPUT_PULLUP);
+  pinMode(relay8_pin, OUTPUT);
+  pinMode(switch8_pin, INPUT_PULLUP);
+}
+
+void loop() {
+
+  if (WiFi.status() != WL_CONNECTED) {
+    connectToWiFi();
+  }
+  
+  
+  // Read switch states
+  int switch1State = digitalRead(switch1_pin);
+  int switch2State = digitalRead(switch2_pin);
+  int switch3State = digitalRead(switch3_pin);
+  int switch4State = digitalRead(switch4_pin);
+  int switch5State = digitalRead(switch5_pin);
+  int switch6State = digitalRead(switch6_pin);
+  int switch7State = digitalRead(switch7_pin);
+  int switch8State = digitalRead(switch8_pin);
+
+  if (!wifi_Control && switch1State != switch1PreviousState) {
+    relay1State = !relay1State; 
+    digitalWrite(relay1_pin, relay1State ? HIGH : LOW);
+    updateFirebaseRelayState("relay1", relay1State);
+    switch1PreviousState = switch1State;
+    delay(250);
+  }
+
+  if (!wifi_Control && switch2State != switch2PreviousState) {
+    relay2State = !relay2State;
+    digitalWrite(relay2_pin, relay2State ? HIGH : LOW);
+    updateFirebaseRelayState("relay2", relay2State);
+    switch2PreviousState = switch2State;
+    delay(250);
+  }
+
+  if (!wifi_Control && switch3State != switch3PreviousState) {
+    relay3State = !relay3State; 
+    digitalWrite(relay3_pin, relay3State ? HIGH : LOW);
+    updateFirebaseRelayState("relay3", relay3State);
+    switch3PreviousState = switch3State;
+    delay(250);
+  }
+
+  if (!wifi_Control && switch4State != switch4PreviousState) {
+    relay4State = !relay4State; 
+    digitalWrite(relay4_pin, relay4State ? HIGH : LOW);
+    updateFirebaseRelayState("relay4", relay4State);
+    switch4PreviousState = switch4State;
+    delay(250);
+  }
+  
+  /*if (!wifi_Control && switch5State != switch5PreviousState) {
+      relay5State = !relay5State;
+      digitalWrite(relay5_pin, relay5State ? HIGH : LOW);
+      updateFirebaseRelayState("relay5", relay5State);
+      switch5PreviousState = switch5State;
+      delay(250);
+  }
+  
+  if (!wifi_Control && switch6State != switch6PreviousState) {
+      relay6State = !relay6State; 
+      digitalWrite(relay6_pin, relay6State ? HIGH : LOW);
+      updateFirebaseRelayState("relay6", relay6State);
+      switch6PreviousState = switch6State;
+      delay(250);
+  }
+  
+  if (!wifi_Control && switch7State != switch7PreviousState) {
+      relay7State = !relay7State; 
+      digitalWrite(relay7_pin, relay7State ? HIGH : LOW);
+      updateFirebaseRelayState("relay7", relay7State);
+      switch7PreviousState = switch7State;
+      delay(250);
+  }
+  
+  if (!wifi_Control && switch8State != switch8PreviousState) {
+      relay8State = !relay8State; 
+      digitalWrite(relay8_pin, relay8State ? HIGH : LOW);
+      updateFirebaseRelayState("relay8", relay8State);
+      switch8PreviousState = switch8State;
+      delay(250);
+  }*/
+
+  //------------Now Online---------// 
+  if(WiFi.status() == WL_CONNECTED){
+  Firebase.set(firebaseData, TIMESTAMP_PATH, millis() / 1000);
+
+  // Read relay states from Firebase
+  if (Firebase.getInt(firebaseData, "/relay1")) {
+    int relay1fbState = firebaseData.intData();
+    if(relay1fbState != relay1State){
+      relay1State= relay1fbState;
+      digitalWrite(relay1_pin, relay1State ? HIGH : LOW);
+      wifi_Control = true;
+    }
+  } else {
+    Serial.println("Relay 1 "+firebaseData.errorReason());
+  }
+
+  if (Firebase.getInt(firebaseData, "/relay2")) {
+    int relay2fbState = firebaseData.intData();
+    if(relay2fbState != relay2State){
+      relay2State= relay2fbState;
+      digitalWrite(relay2_pin, relay2State ? HIGH : LOW);
+      wifi_Control = true;
+    }
+  }
+
+if (Firebase.getInt(firebaseData, "/relay3")) {
+    int relay3fbState = firebaseData.intData();
+    if(relay3fbState != relay3State){
+      relay3State= relay3fbState;
+      digitalWrite(relay3_pin, relay3State ? HIGH : LOW);
+      wifi_Control = true;
+    }
+  } 
+
+if (Firebase.getInt(firebaseData, "/relay4")) {
+    int relay4fbState = firebaseData.intData();
+    if(relay4fbState != relay4State){
+      relay4State= relay4fbState;
+      digitalWrite(relay4_pin, relay4State ? HIGH : LOW);
+      wifi_Control = true;
+    }
+  } 
+
+/*if (Firebase.getInt(firebaseData, "/relay5")) {
+    int relay5fbState = firebaseData.intData();
+    if(relay5fbState != relay5State){
+      relay5State= relay5fbState;
+      digitalWrite(relay5_pin, relay5State ? HIGH : LOW);
+      wifi_Control = true;
+    }
+  } 
+
+// Repeat the code block for relay6 to relay8 with appropriate changes for each iteration
+
+if (Firebase.getInt(firebaseData, "/relay6")) {
+    int relay6fbState = firebaseData.intData();
+    if(relay6fbState != relay6State){
+      relay6State= relay6fbState;
+      digitalWrite(relay6_pin, relay6State ? HIGH : LOW);
+      wifi_Control = true;
+    }
+  } 
+
+// Repeat the code block for relay7 and relay8 with appropriate changes for each iteration
+
+if (Firebase.getInt(firebaseData, "/relay7")) {
+    int relay7fbState = firebaseData.intData();
+    if(relay7fbState != relay7State){
+      relay7State= relay7fbState;
+      digitalWrite(relay7_pin, relay7State ? HIGH : LOW);
+      wifi_Control = true;
+    }
+  } 
+
+if (Firebase.getInt(firebaseData, "/relay8")) {
+    int relay8fbState = firebaseData.intData();
+    if(relay8fbState != relay8State){
+      relay8State= relay8fbState;
+      digitalWrite(relay8_pin, relay8State ? HIGH : LOW);
+      wifi_Control = true;
+    }
+  } */
+  }
+
+  if (switch1State == LOW || switch2State == LOW || switch3State == LOW|| switch4State == LOW|| switch5State == LOW|| switch6State == LOW|| switch7State == LOW|| switch8State == LOW) {
+    wifi_Control = false;
+  }
+}
+
+void updateFirebaseRelayState(const char* relayName, int relayState) {
+  Firebase.setInt(firebaseData, relayName, relayState ? 1 : 0);
+}
+
+
+
+void connectToWiFi() {
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("Connecting to WiFi...");
+
+  int blinkCount = 0;
+  bool connectionFailed = false;
+
+  while (WiFi.status() != WL_CONNECTED) {
+    digitalWrite(LED_PIN, HIGH);
+    delay(250);
+    digitalWrite(LED_PIN, LOW);
+    delay(250);
+
+    blinkCount++;
+    if (blinkCount >= 10) {  // Try reconnecting for a limited number of times
+      connectionFailed = true;
+      break;
+    }
+  }
+
+  if (!connectionFailed) {
+    wifiConnected = true;
+    Serial.println("WiFi connected!");
+    digitalWrite(LED_PIN, HIGH);
+  } else {
+    wifiConnected = false;
+    Serial.println("WiFi connection failed!");
+  }
